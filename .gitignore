@@ -1,0 +1,11 @@
+# Ignore obiectele de compilare
+*.o
+*.a
+
+# Ignore executabilele
+main
+libmini_server
+
+# Ignore fișierele generate de editori și IDE-uri
+.vscode/
+*.log
