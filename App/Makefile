@@ -3,8 +3,16 @@
 ###############################################################################
 
 # Create top level static library and all sub-libraries
-all: Main DataStructures Server-files
+all: Main DataStructures Server-files main_exec
 
+
+###############################################################################
+# MARK: EXECUTABLE
+###############################################################################
+
+# Build the main executable
+main_exec: Main
+	gcc -o main main.c -L. -lmini_server
 
 ###############################################################################
 # MARK: MAIN
@@ -12,7 +20,7 @@ all: Main DataStructures Server-files
 
 # Creates just the top level static library
 Main: DataStructuresSub Server-filesSub
-		ar rcs libmini_server.a Node.o LinkedList.o  BinarySearchTree.o Entry.o Dictionary.o  Server.o 
+		ar rcs libmini_server.a Node.o LinkedList.o  BinarySearchTree.o Entry.o Dictionary.o Queue.o Server.o HTTPRequest.o 
 
 
 
@@ -22,10 +30,10 @@ Main: DataStructuresSub Server-filesSub
 
 # Creates the data structures library
 DataStructures: DataStructuresSub
-	ar rcs DataStructures/DataStructures.a Node.o LinkedList.o BinarySearchTree.o Entry.o Dictionary.o
+	ar rcs DataStructures/DataStructures.a Node.o LinkedList.o BinarySearchTree.o Entry.o Dictionary.o Queue.o
 	
 # Sub components of the data structures library
-DataStructuresSub: Node LinkedList BinarySearchTree Entry Dictionary
+DataStructuresSub: Node LinkedList BinarySearchTree Entry Dictionary Queue
 
 Node:
 	gcc -c DataStructures/Common/Node.c
@@ -41,6 +49,9 @@ Entry:
 
 Dictionary:
 	gcc -c DataStructures/Dictionary/Dictionary.c
+
+Queue:
+	gcc -c DataStructures/Lists/Queue.c
 	
 
 ###############################################################################
@@ -49,14 +60,15 @@ Dictionary:
 
 # Creates the networking library
 Server-files: Server-filesSub
-	ar rcs Server-files/Server-files.a Server.o Node.o LinkedList.o BinarySearchTree.o Entry.o Dictionary.o
+	ar rcs Server-files/Server-files.a Server.o Node.o LinkedList.o BinarySearchTree.o Entry.o Dictionary.o HTTPRequest.o
 
 # Sub components of the networking library
-Server-filesSub: DataStructuresSub Server
+Server-filesSub: DataStructuresSub Server HTTP
 
 Server:
 	gcc -c Server-files/Server.c
-	
+HTTP:
+	gcc -c Server-files/HTTPRequest.c
 
 ###############################################################################
 # MARK: CLEAN
