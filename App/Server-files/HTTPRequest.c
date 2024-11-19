@@ -28,8 +28,6 @@ struct HTTPRequest request_constructor(char* request)
         extract_header_content(&http_request, request_header);
         extract_body_content(&http_request, request_body);
 
-        printf("Buffer modificat:\n\n");
-
         return http_request;
 
         
