@@ -3,6 +3,7 @@
 #define MAX_LENGTH 30000
 
 #include <stdarg.h>
+#include "ThreadPool.h"
 
 void register_routes(struct HTTPServer *server, 
         void (*route_function)(struct HTTPServer *server, struct HTTPRequest *request),
@@ -61,7 +62,8 @@ void register_routes(struct HTTPServer *server,
 
 void launch(struct HTTPServer *server)
 {
-
+    struct ThreadPool thread_pool = thread_pool_constructor(20);
+    struct sockaddr *sock_addr = (struct sockaddr *)&server->server.address;
     // obtin lungimea adresei pentru a putea face accept la conexiuni
     int address_length = sizeof(server->server.address);
 
@@ -70,10 +72,17 @@ void launch(struct HTTPServer *server)
         
         struct ClientServer *client = malloc(sizeof(struct ClientServer));
         client->client = accept(server->server.socket, (struct sockaddr *)&server->server.address,(socklen_t *)&address_length);
-        client->server = server;
-        printf("Client accepted!\n");
         
+        //client->client = accept(server->server.socket, sock_addr, &address_length);
+        
+        client->server = server;
+
+        struct ThreadJob job = thread_job_constructor(handler, client);
+        thread_pool.add_work(&thread_pool, job);
+
+        printf("Client accepted!\n");
     }
+
 }
 
 
@@ -101,3 +110,32 @@ void * handler(void *arg)
 }
 
 // de continuat !!!
+
+
+
+
+// Joins the contents of multiple files into one.
+char *render_template(int num_templates, ...)
+{
+    // Create a buffer to store the data in.
+    char *buffer = malloc(30000);
+    int buffer_position = 0;
+    char c;
+    FILE *file;
+    // Iterate over the files given as arguments.
+    va_list files;
+    va_start(files, num_templates);
+    // Read the contents of each file into the buffer.
+    for (int i = 0; i < num_templates; i++)
+    {
+        char *path = va_arg(files, char*);
+        file = fopen(path, "r");
+        while ((c = fgetc(file)) != EOF)
+        {
+            buffer[buffer_position] = c;
+            buffer_position += 1;
+        }
+    }
+    va_end(files);
+    return buffer;
+}
