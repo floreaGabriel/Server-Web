@@ -31,6 +31,12 @@ struct Server server_constructor(int domain, int  service, int protocol, uint32_
         exit(-1);
     }
 
+    int opt = 1;
+    if (setsockopt(server.socket, SOL_SOCKET, SO_REUSEADDR, &opt, sizeof(opt)) < 0) {
+        perror("setsockopt failed");
+        exit(EXIT_FAILURE);
+    }
+
     if (bind(server.socket, (struct sockaddr*)&server.address, sizeof(server.address)) < 0)
     {
         perror("Failed to bind ... \n");
@@ -48,3 +54,6 @@ struct Server server_constructor(int domain, int  service, int protocol, uint32_
 
 }
 
+void server_destructor(struct Server *server) {
+    close(server->socket);
+}

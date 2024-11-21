@@ -1,31 +1,44 @@
 #include "ThreadPool.h"
 
 #include <stdlib.h>
-
+#include <errno.h>
+#include <stdio.h>
 
 void * generic_thread_function(void *arg);
 void add_work(struct ThreadPool *thread_pool, struct ThreadJob thread_job);
 
-struct ThreadPool thread_pool_constructor(int num_threads)
-{
-
+struct ThreadPool thread_pool_constructor(int num_threads) {
     struct ThreadPool thread_pool;
     thread_pool.num_threads = num_threads;
     thread_pool.active = 1;
     thread_pool.work = queue_constructor();
 
-    thread_pool.lock = (pthread_mutex_t)PTHREAD_MUTEX_INITIALIZER;
-    thread_pool.signal = (pthread_cond_t)PTHREAD_COND_INITIALIZER;
-    pthread_mutex_lock(&thread_pool.lock);
-    thread_pool.pool = malloc(sizeof(pthread_t[num_threads]));
-    for (int i = 0; i < num_threads; i++)
-    {
-        pthread_create(&thread_pool.pool[i], NULL, generic_thread_function, &thread_pool);
+    if (pthread_mutex_init(&thread_pool.lock, NULL) != 0) {
+        perror("Failed to initialize mutex");
+        exit(EXIT_FAILURE);
     }
-    pthread_mutex_unlock(&thread_pool.lock);
+    if (pthread_cond_init(&thread_pool.signal, NULL) != 0) {
+        perror("Failed to initialize condition variable");
+        exit(EXIT_FAILURE);
+    }
+
+    thread_pool.pool = malloc(num_threads * sizeof(pthread_t));
+    if (!thread_pool.pool) {
+        perror("Failed to allocate memory for thread pool");
+        exit(EXIT_FAILURE);
+    }
+
+    for (int i = 0; i < num_threads; i++) {
+        if (pthread_create(&thread_pool.pool[i], NULL, generic_thread_function, &thread_pool) != 0) {
+            perror("Failed to create thread");
+            exit(EXIT_FAILURE);
+        }
+    }
+
     thread_pool.add_work = add_work;
     return thread_pool;
 }
+
 
 struct ThreadJob thread_job_constructor(void * (*job)(void *arg), void *arg)
 {
