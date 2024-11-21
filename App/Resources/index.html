@@ -1,52 +1,11 @@
 <!DOCTYPE html>
-<html lang="en">
+<html lang="ro">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Test GET Request</title>
-    <style>
-        body {
-            font-family: Arial, sans-serif;
-            margin: 50px;
-            text-align: center;
-        }
-        button {
-            padding: 10px 20px;
-            font-size: 16px;
-            cursor: pointer;
-            background-color: #007bff;
-            color: white;
-            border: none;
-            border-radius: 5px;
-        }
-        button:hover {
-            background-color: #0056b3;
-        }
-    </style>
+    <title>Hello World</title>
 </head>
 <body>
-    <h1>Test GET Request</h1>
-    <p>Apasă pe buton pentru a trimite un request GET către server.</p>
-    <button id="getRequestButton">Trimite GET Request</button>
-    <p id="response" style="margin-top: 20px; font-weight: bold;"></p>
-
-    <script>
-        document.getElementById('getRequestButton').addEventListener('click', () => {
-            // Trimite un request GET către serverul local pe ruta /test
-            fetch('/test')
-                .then(response => {
-                    if (!response.ok) {
-                        throw new Error(`HTTP error! Status: ${response.status}`);
-                    }
-                    return response.text();
-                })
-                .then(data => {
-                    document.getElementById('response').textContent = `Răspuns primit de la server: ${data}`;
-                })
-                .catch(error => {
-                    document.getElementById('response').textContent = `Eroare: ${error.message}`;
-                });
-        });
-    </script>
+    <h1>Hello World</h1>
 </body>
 </html>

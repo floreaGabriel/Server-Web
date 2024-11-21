@@ -1,0 +1,57 @@
+<!DOCTYPE html>
+<html lang="ro">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Demo - Desen Mașină</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            height: 100vh;
+            margin: 0;
+            background-color: #f0f0f0;
+        }
+        canvas {
+            border: 2px solid black;
+        }
+    </style>
+</head>
+<body>
+    <canvas id="carCanvas" width="500" height="300"></canvas>
+
+    <script>
+        // Obținem elementul canvas și contextul de desen
+        const canvas = document.getElementById("carCanvas");
+        const ctx = canvas.getContext("2d");
+
+        // Desenăm corpul mașinii (un dreptunghi)
+        ctx.fillStyle = "#4CAF50"; // culoarea verde
+        ctx.fillRect(100, 150, 300, 50); // poziția și dimensiunea corpului
+
+        // Desenăm geamurile (două dreptunghiuri)
+        ctx.fillStyle = "#ffffff"; // culoarea geamurilor
+        ctx.fillRect(130, 160, 50, 30); // geamul din față
+        ctx.fillRect(220, 160, 50, 30); // geamul din spate
+
+        // Desenăm roțile (două cercuri)
+        ctx.fillStyle = "#000000"; // culoarea roților
+        ctx.beginPath();
+        ctx.arc(140, 210, 20, 0, Math.PI * 2); // roata din față
+        ctx.fill();
+        ctx.beginPath();
+        ctx.arc(360, 210, 20, 0, Math.PI * 2); // roata din spate
+        ctx.fill();
+
+        // Adăugăm o linie pentru a separa partea de jos a mașinii
+        ctx.strokeStyle = "#000000"; // culoarea liniei
+        ctx.lineWidth = 3;
+        ctx.beginPath();
+        ctx.moveTo(100, 200);
+        ctx.lineTo(400, 200);
+        ctx.stroke();
+    </script>
+</body>
+</html>
