@@ -1,96 +1,130 @@
 #include "ThreadPool.h"
-
 #include <stdlib.h>
-#include <errno.h>
 #include <stdio.h>
 
-void * generic_thread_function(void *arg);
-void add_work(struct ThreadPool *thread_pool, struct ThreadJob thread_job);
+// Funcție rulată de fiecare thread
+static void *threadWorker(void *arg) {
+    ThreadPool *pool = (ThreadPool *)arg;
 
-struct ThreadPool thread_pool_constructor(int num_threads) {
-    struct ThreadPool thread_pool;
-    thread_pool.num_threads = num_threads;
-    thread_pool.active = 1;
-    thread_pool.work = queue_constructor();
+    while (1) {
+        Task *task;
 
-    if (pthread_mutex_init(&thread_pool.lock, NULL) != 0) {
-        perror("Failed to initialize mutex");
-        exit(EXIT_FAILURE);
-    }
-    if (pthread_cond_init(&thread_pool.signal, NULL) != 0) {
-        perror("Failed to initialize condition variable");
-        exit(EXIT_FAILURE);
-    }
+        // Blocare mutex pentru a accesa coada
+        pthread_mutex_lock(&pool->queueMutex);
 
-    thread_pool.pool = malloc(num_threads * sizeof(pthread_t));
-    if (!thread_pool.pool) {
-        perror("Failed to allocate memory for thread pool");
-        exit(EXIT_FAILURE);
-    }
+        // Așteaptă până când există task-uri sau pool-ul este oprit
+        while (pool->taskQueueHead == NULL && !pool->stop) {
+            pthread_cond_wait(&pool->condition, &pool->queueMutex);
+        }
 
-    for (int i = 0; i < num_threads; i++) {
-        if (pthread_create(&thread_pool.pool[i], NULL, generic_thread_function, &thread_pool) != 0) {
-            perror("Failed to create thread");
-            exit(EXIT_FAILURE);
+        if (pool->stop && pool->taskQueueHead == NULL) {
+            pthread_mutex_unlock(&pool->queueMutex);
+            break;
+        }
+
+        // Preluare task din coadă
+        task = pool->taskQueueHead;
+        pool->taskQueueHead = task->next;
+        if (pool->taskQueueHead == NULL) {
+            pool->taskQueueTail = NULL;
+        }
+
+        pthread_mutex_unlock(&pool->queueMutex);
+
+        // Execută task-ul
+        if (task) {
+            task->function(task->arg);
+            free(task);
         }
     }
 
-    thread_pool.add_work = add_work;
-    return thread_pool;
-}
-
-
-struct ThreadJob thread_job_constructor(void * (*job)(void *arg), void *arg)
-{
-    struct ThreadJob thread_job;
-    thread_job.job = job;
-    thread_job.arg = arg;
-    return thread_job;
-}
-
-void thread_pool_destructor(struct ThreadPool *thread_pool)
-{
-    thread_pool->active = 0;
-    for (int i = 0; i < thread_pool->num_threads; i++)
-    {
-        pthread_cond_signal(&thread_pool->signal);
-    }
-    for (int i = 0; i < thread_pool->num_threads; i++)
-    {
-        pthread_join(thread_pool->pool[i], NULL);
-    }
-    free(thread_pool->pool);
-    queue_destructor(&thread_pool->work);
-}
-
-
-void * generic_thread_function(void *arg)
-{
-    struct ThreadPool *thread_pool = (struct ThreadPool *)arg;
-    while (thread_pool->active == 1)
-    {
-
-        pthread_mutex_lock(&thread_pool->lock);
-        pthread_cond_wait(&thread_pool->signal, &thread_pool->lock);
-
-        struct ThreadJob thread_job = *(struct ThreadJob *)thread_pool->work.peek(&thread_pool->work);
-
-        thread_pool->work.pop(&thread_pool->work);
-        pthread_mutex_unlock(&thread_pool->lock);
-
-        if (thread_job.job)
-        {
-            thread_job.job(thread_job.arg);
-        }
-    }
     return NULL;
 }
 
+// Creare ThreadPool
+ThreadPool *threadPoolCreate(size_t numThreads) {
+    ThreadPool *pool = (ThreadPool *)malloc(sizeof(ThreadPool));
+    if (!pool) {
+        perror("Eroare alocare memorie pentru ThreadPool");
+        return NULL;
+    }
 
-void add_work(struct ThreadPool *thread_pool, struct ThreadJob thread_job)
-{
-    pthread_mutex_lock(&thread_pool->lock);
-    thread_pool->work.push(&thread_pool->work, &thread_job, sizeof(thread_job));
-    pthread_cond_signal(&thread_pool->signal);
-    pthread_mutex_unlock(&thread_pool->lock);
+    pool->threadCount = numThreads;
+    pool->stop = 0;
+    pool->taskQueueHead = NULL;
+    pool->taskQueueTail = NULL;
+
+    pthread_mutex_init(&pool->queueMutex, NULL);
+    pthread_cond_init(&pool->condition, NULL);
+
+    pool->threads = (pthread_t *)malloc(sizeof(pthread_t) * numThreads);
+    if (!pool->threads) {
+        perror("Eroare alocare memorie pentru thread-uri");
+        free(pool);
+        return NULL;
+    }
+
+    for (size_t i = 0; i < numThreads; i++) {
+        if (pthread_create(&pool->threads[i], NULL, threadWorker, pool) != 0) {
+            perror("Eroare creare thread");
+            threadPoolDestroy(pool);
+            return NULL;
+        }
+    }
+
+    return pool;
+}
+
+// Adăugare task în coadă
+void threadPoolEnqueue(ThreadPool *pool, void (*function)(void *), void *arg) {
+    if (!pool || !function) return;
+
+    Task *newTask = (Task *)malloc(sizeof(Task));
+    if (!newTask) {
+        perror("Eroare alocare memorie pentru task");
+        return;
+    }
+
+    newTask->function = function;
+    newTask->arg = arg;
+    newTask->next = NULL;
+
+    pthread_mutex_lock(&pool->queueMutex);
+
+    if (pool->taskQueueTail) {
+        pool->taskQueueTail->next = newTask;
+    } else {
+        pool->taskQueueHead = newTask;
+    }
+    pool->taskQueueTail = newTask;
+
+    pthread_cond_signal(&pool->condition);
+    pthread_mutex_unlock(&pool->queueMutex);
+}
+
+// Distrugere ThreadPool
+void threadPoolDestroy(ThreadPool *pool) {
+    if (!pool) return;
+
+    pthread_mutex_lock(&pool->queueMutex);
+    pool->stop = 1;
+    pthread_cond_broadcast(&pool->condition);
+    pthread_mutex_unlock(&pool->queueMutex);
+
+    for (size_t i = 0; i < pool->threadCount; i++) {
+        pthread_join(pool->threads[i], NULL);
+    }
+
+    free(pool->threads);
+
+    // Golire coadă de task-uri
+    while (pool->taskQueueHead) {
+        Task *task = pool->taskQueueHead;
+        pool->taskQueueHead = pool->taskQueueHead->next;
+        free(task);
+    }
+
+    pthread_mutex_destroy(&pool->queueMutex);
+    pthread_cond_destroy(&pool->condition);
+    free(pool);
 }
