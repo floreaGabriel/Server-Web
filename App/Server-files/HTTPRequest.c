@@ -19,7 +19,6 @@ struct HTTPRequest request_constructor(char* request)
         }
 
         char *request_line = strtok(requested, "\n");
-        printf("requestline %s\n",request_line);
         char *request_header = strtok(NULL, "#");
         char *request_body = strtok(NULL, "\r\n");
 
@@ -44,6 +43,10 @@ void extract_request_line(struct HTTPRequest* http_request, char* request_line) 
     char* method = strtok(fields, " ");
     char* uri = strtok(NULL, " ");
     char* http_version = strtok(NULL, " ");
+    
+    
+    //sizeof(char[strlen(method)])
+    //sizeof(method)
 
     struct Dictionary rq_line_d = dictionary_constructor(compare_string_keys);
     rq_line_d.insert(&rq_line_d, "method", sizeof("method"), method, sizeof(char[strlen(method)]));

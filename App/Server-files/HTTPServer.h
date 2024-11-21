@@ -9,11 +9,10 @@ struct HTTPServer {
 
     struct Server server;
     struct Dictionary routes;
+    pthread_mutex_t routes_mutex; // Mutex pentru protecția `routes`
     void (*register_routes)(struct HTTPServer *server, 
         char * (*route_function)(struct HTTPServer *server, struct HTTPRequest *request),
         char *uri, int num_methods, ...);
-
-    void (*launch)(struct HTTPServer *server);
 };
 
 enum HTTPMethods
@@ -29,10 +28,10 @@ enum HTTPMethods
     TRACE
 };
 
-
+void launch(struct HTTPServer *server);
 struct HTTPServer http_server_constructor(void);
+void http_server_destructor(struct HTTPServer *server);
 
 char *render_template(int num_templates, ...);
 
-void http_server_destructor(struct HTTPServer *server);
 #endif

@@ -18,8 +18,10 @@ typedef struct ThreadPool {
     Task *taskQueueTail;        // Coada cozii de task-uri
     pthread_mutex_t queueMutex; // Mutex pentru coadă
     pthread_cond_t condition;   // Condiție pentru sincronizare
-    size_t threadCount;         // Numărul de thread-uri
     int stop;                   // Flag pentru oprire
+    size_t threadCount;         // Numărul de thread-uri
+    size_t queueSize; //cati sunt actual
+
 } ThreadPool;
 
 // Funcții pentru utilizarea threadpool-ului
