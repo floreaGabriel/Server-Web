@@ -4,18 +4,20 @@
 
 #include <stdarg.h>
 #include "ThreadPool.h"
+#include <stdlib.h>
 
 void register_routes(struct HTTPServer *server, 
-        void (*route_function)(struct HTTPServer *server, struct HTTPRequest *request),
+        char * (*route_function)(struct HTTPServer *server, struct HTTPRequest *request),
         char *uri, int num_methods, ...);   
 
 void * handler(void *arg);
+void launch(struct HTTPServer *server);
 
-struct HTTPServer http_server_constructor() {
+struct HTTPServer http_server_constructor(void) {
 
     struct HTTPServer server;
 
-    server.server = server_constructor(AF_INET, SOCK_STREAM, 0, INADDR_ANY, 8080, 255);
+    server.server = server_constructor(AF_INET, SOCK_STREAM, 0, INADDR_ANY, 8081, 255);
     server.register_routes = register_routes;
     server.routes = dictionary_constructor(compare_string_keys);
     server.launch = launch;
@@ -35,7 +37,7 @@ struct Route {
 };
 
 void register_routes(struct HTTPServer *server, 
-        void (*route_function)(struct HTTPServer *server, struct HTTPRequest *request),
+        char *(*route_function)(struct HTTPServer *server, struct HTTPRequest *request),
         char *uri, int num_methods, ...)
 {
     struct Route route;
@@ -80,6 +82,7 @@ void launch(struct HTTPServer *server)
         struct ThreadJob job = thread_job_constructor(handler, client);
         thread_pool.add_work(&thread_pool, job);
 
+
         printf("Client accepted!\n");
     }
 
@@ -88,14 +91,18 @@ void launch(struct HTTPServer *server)
 
 void * handler(void *arg)
 {
+    printf("hadnler\n");
     struct ClientServer *client = (struct ClientServer*)arg;
     
     char request_string[MAX_LENGTH];
 
     ssize_t bytes_read = read(client->client, request_string, sizeof(request_string));
 
+    
+    printf("%s\n\n", request_string);
+
     struct HTTPRequest request = request_constructor(request_string);
-    char *uri = request.request_line.search(&request, "uri", sizeof("uri"));
+    char *uri = request.request_line.search(&request.request_line, "uri", sizeof("uri"));
 
     struct Route *route = client->server->routes.search(&client->server->routes, uri, sizeof(char[strlen(uri)]));
 
@@ -105,7 +112,8 @@ void * handler(void *arg)
     close(client->client);
     free(client);
 
-    http_request_destructor(&request);
+    close(client->server->server.socket);
+    //http_request_destructor(&request);
     return NULL;
 }
 
@@ -138,4 +146,11 @@ char *render_template(int num_templates, ...)
     }
     va_end(files);
     return buffer;
+}
+
+void http_server_destructor(struct HTTPServer *server)
+{
+    printf("Closing server socket...\n");
+    server_destructor(&server->server);
+    printf("Server socket closed!\n");
 }

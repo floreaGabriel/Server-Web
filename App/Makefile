@@ -20,7 +20,7 @@ main_exec: Main
 
 # Creates just the top level static library
 Main: DataStructuresSub Server-filesSub
-		ar rcs libmini_server.a Node.o LinkedList.o  BinarySearchTree.o Entry.o Dictionary.o Queue.o Server.o HTTPRequest.o 
+		ar rcs libmini_server.a Node.o LinkedList.o  BinarySearchTree.o Entry.o Dictionary.o Queue.o Server.o HTTPRequest.o HTTPServer.o ThreadPool.o
 
 
 
@@ -60,15 +60,19 @@ Queue:
 
 # Creates the networking library
 Server-files: Server-filesSub
-	ar rcs Server-files/Server-files.a Server.o Node.o LinkedList.o BinarySearchTree.o Entry.o Dictionary.o HTTPRequest.o
+	ar rcs Server-files/Server-files.a Server.o Node.o LinkedList.o BinarySearchTree.o Entry.o Dictionary.o HTTPRequest.o HTTPServer.o ThreadPool.o
 
 # Sub components of the networking library
-Server-filesSub: DataStructuresSub Server HTTP
+Server-filesSub: DataStructuresSub Server HTTP HTTPServer ThreadPool
 
 Server:
 	gcc -c Server-files/Server.c
 HTTP:
 	gcc -c Server-files/HTTPRequest.c
+HTTPServer:
+	gcc -c Server-files/HTTPServer.c
+ThreadPool:
+	gcc -c Server-files/ThreadPool.c
 
 ###############################################################################
 # MARK: CLEAN

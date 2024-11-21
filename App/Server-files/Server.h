@@ -23,4 +23,5 @@ struct Server server_constructor(int domain, int service, int protocol, uint32_t
     int port, int backlog);
     
 
+void server_destructor(struct Server *server);
 #endif /* Server_h */
