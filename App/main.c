@@ -26,17 +26,17 @@ char *demo(struct HTTPServer *server, struct HTTPRequest *request)
 
 int main(int argc, char* argv[])
 {
-    struct HTTPServer server = http_server_constructor();
+    struct HTTPServer httpserver = http_server_constructor();
 
 
-    server.register_routes(&server, home, "/", 0);
+    httpserver.register_routes(&httpserver, home, "/", 0);
 
-    server.register_routes(&server, demo, "/demo?cautare=masina", 0);
+    httpserver.register_routes(&httpserver, demo, "/demo?cautare=masina", 0);
 
 
     printf("Serverul este pornit și ascultă pe portul 8081\n");
-    server.launch(&server);
+    launch(&httpserver);
 
-    http_server_destructor(&server);
+    http_server_destructor(&httpserver);
     return 0;
 }

@@ -34,6 +34,7 @@ static void *threadWorker(void *arg) {
         // Execută task-ul
         if (task) {
             task->function(task->arg);
+            pool->queueSize--;
             free(task);
         }
     }
@@ -53,6 +54,9 @@ ThreadPool *threadPoolCreate(size_t numThreads) {
     pool->stop = 0;
     pool->taskQueueHead = NULL;
     pool->taskQueueTail = NULL;
+    pool->queueSize=0;
+
+
 
     pthread_mutex_init(&pool->queueMutex, NULL);
     pthread_cond_init(&pool->condition, NULL);
@@ -79,6 +83,15 @@ ThreadPool *threadPoolCreate(size_t numThreads) {
 void threadPoolEnqueue(ThreadPool *pool, void (*function)(void *), void *arg) {
     if (!pool || !function) return;
 
+
+    pthread_mutex_lock(&pool->queueMutex);
+
+    if (pool->queueSize >= pool->threadCount) {
+        pthread_mutex_unlock(&pool->queueMutex);
+        fprintf(stderr, "Coada ThreadPool este plină! Task-ul a fost respins.\n");
+        return;
+    }
+
     Task *newTask = (Task *)malloc(sizeof(Task));
     if (!newTask) {
         perror("Eroare alocare memorie pentru task");
@@ -89,7 +102,7 @@ void threadPoolEnqueue(ThreadPool *pool, void (*function)(void *), void *arg) {
     newTask->arg = arg;
     newTask->next = NULL;
 
-    pthread_mutex_lock(&pool->queueMutex);
+    //pthread_mutex_lock(&pool->queueMutex);
 
     if (pool->taskQueueTail) {
         pool->taskQueueTail->next = newTask;
@@ -97,6 +110,8 @@ void threadPoolEnqueue(ThreadPool *pool, void (*function)(void *), void *arg) {
         pool->taskQueueHead = newTask;
     }
     pool->taskQueueTail = newTask;
+
+    pool->queueSize++; // Creștem dimensiunea cozii
 
     pthread_cond_signal(&pool->condition);
     pthread_mutex_unlock(&pool->queueMutex);
