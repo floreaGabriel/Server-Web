@@ -75,6 +75,7 @@ void launch(struct HTTPServer *server)
     ThreadPool *thread_pool = threadPoolCreate(20);
     if (!thread_pool) {
         perror("Eroare la crearea ThreadPool-ului");
+        
         return;
     }
 
@@ -89,21 +90,21 @@ void launch(struct HTTPServer *server)
 
         // Acceptăm conexiuni de la clienți
         int client_socket = accept(server->server.socket, (struct sockaddr *)&server->server.address, (socklen_t *)&address_length);
+        
         if (client_socket < 0) {
             perror("Eroare la acceptarea conexiunii");
             continue;
         }
 
-
         //printf("Client accepted!\n");
 
-        printf("Conexiune acceptată pe socketul %d\n", client_socket);
+        printf("Conexiune acceptată pe socketul %d si pe portul %d\n", client_socket, server->server.port);
 
         // Creăm structura pentru argumentele handler-ului
         struct ClientServer* client = malloc(sizeof(struct ClientServer));
         if (!client) {
             perror("Eroare alocare memorie pentru ClientServer");
-            return NULL;
+            return;
         }
 
 
@@ -112,17 +113,20 @@ void launch(struct HTTPServer *server)
 
         // Adăugăm handler-ul în ThreadPool
         threadPoolEnqueue(thread_pool, handler, client);
+
+
+        printf("Dupa handler!\n");
     }
 
     // Distrugem ThreadPool-ul când terminăm
     threadPoolDestroy(thread_pool);
 }
 
-void *handler(void *arg)
+void * handler(void *arg)
 {
     struct ClientServer *client = (struct ClientServer *)arg;
     int client_socket = client->client;
-    //free(client);
+    
 
     char request_string[MAX_LENGTH];
 
@@ -137,7 +141,6 @@ void *handler(void *arg)
         close(client_socket);
         return NULL;
     }
-
 
     request_string[bytes_read] = '\0';
     //printf("\n\nHttp primit:\n%s",request_string);
@@ -156,6 +159,7 @@ void *handler(void *arg)
 
     if (!route) {
         printf("Ruta nu a fost găsită pentru URI: %s\n", uri);
+        close(client_socket);
         return NULL;  // Tratați corespunzător cazul în care ruta nu este găsită
     }
 
@@ -212,6 +216,7 @@ void *handler(void *arg)
 
     }
 
+    printf("Inchidem socketul %d ...\n", client_socket);
     // Curățăm resursele
     close(client_socket);
     free(client);
@@ -241,6 +246,7 @@ char *render_template(int num_templates, ...)
         char *path = va_arg(files, char*);
         file = fopen(path, "r");
         if (!file) {
+            printf("Eroare deschidere fisier: %s\n", path);
             perror("Eroare deschidere fișier în render_template");
             continue;
         }
@@ -254,7 +260,6 @@ char *render_template(int num_templates, ...)
         fclose(file);
     }
     buffer[buffer_position] = '\0';
-
     va_end(files);
     return buffer;
 }

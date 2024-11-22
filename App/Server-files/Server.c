@@ -3,6 +3,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include "HTTPRequest.h"
+#include <pthread.h>
 
 #define MAX_LENGTH 30000
 
@@ -55,5 +56,6 @@ struct Server server_constructor(int domain, int  service, int protocol, uint32_
 }
 
 void server_destructor(struct Server *server) {
+    printf("Closing server socket %d ... \n\n", server->socket);
     close(server->socket);
 }
