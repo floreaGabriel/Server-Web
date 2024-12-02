@@ -7,9 +7,6 @@
 #include <stdio.h>
 
 
-
-
-
 struct HTTPRequest {
 
     // requestul este de forma 
