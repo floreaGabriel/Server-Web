@@ -1,42 +1,29 @@
 #include "libmini_server.h" // librarie principala
 
-
-#include "Server-files/HTTPServer.h"
-
-
-char *home(struct HTTPServer *server, struct HTTPRequest *request)
-{
-    char *response = render_template(1, "Resources/index.html");
-    if (!response) {
-        return strdup("HTTP/1.1 500 Internal Server Error\r\nContent-Length: 0\r\n\r\n");
-    }
-    return response;
-}
-
-char *demo(struct HTTPServer *server, struct HTTPRequest *request)
-{
-    char *response = render_template(1, "Resources/demo.html");
-    if (!response) {
-        return strdup("HTTP/1.1 500 Internal Server Error\r\nContent-Length: 0\r\n\r\n");
-    }
-    return response;
-}
-
-
+#include<stdio.h>
+#include "Server-files/Server.h"
+#include <signal.h>
 
 int main(int argc, char* argv[])
 {
-    struct HTTPServer httpserver = http_server_constructor();
+    signal(SIGPIPE, SIG_IGN);
 
+    struct Server httpserver = server_constructor(AF_INET, SOCK_STREAM, 0, INADDR_ANY, 8080, 255);
 
-    httpserver.register_routes(&httpserver, home, "/", 0);
+    // char path[500];
+    // ssize_t len = readlink("/proc/self/exe", path, sizeof(path) - 1);
+    // if (len != -1) {
+    //     path[len] = '\0'; // Asigurăm terminatorul de string
+    //     printf("Calea completă către executabil: %s\n", path);
+    // } else {
+    //     perror("readlink");
+    // }
 
-    httpserver.register_routes(&httpserver, demo, "/demo?cautare=masina", 0);
 
 
     printf("Serverul este pornit și ascultă pe portul 8081\n");
     launch(&httpserver);
 
-    http_server_destructor(&httpserver);
+    server_destructor(&httpserver);
     return 0;
 }

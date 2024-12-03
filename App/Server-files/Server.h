@@ -5,6 +5,8 @@
 #include <stdint.h>
 #include <netinet/in.h>
 #include <unistd.h>
+#include "ThreadPool.h"
+
 
 struct Server {
     int domain;
@@ -19,9 +21,15 @@ struct Server {
     int socket;
 };
 
+
+struct ClientServer {
+    int client;
+};
+
 struct Server server_constructor(int domain, int service, int protocol, uint32_t interface, 
     int port, int backlog);
-    
+
+void launch(struct Server *server);
 
 void server_destructor(struct Server *server);
 #endif /* Server_h */
