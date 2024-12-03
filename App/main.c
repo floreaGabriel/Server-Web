@@ -1,11 +1,13 @@
 #include "libmini_server.h" // librarie principala
 
-
+#include<stdio.h>
 #include "Server-files/Server.h"
-
+#include <signal.h>
 
 int main(int argc, char* argv[])
 {
+    signal(SIGPIPE, SIG_IGN);
+
     struct Server httpserver = server_constructor(AF_INET, SOCK_STREAM, 0, INADDR_ANY, 8080, 255);
 
     // char path[500];
