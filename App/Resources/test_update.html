@@ -4,11 +4,38 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Test PUT Update</title>
+    <script>
+        function submitForm(event) {
+            event.preventDefault(); // Previne trimiterea formularului
+
+            var formData = new FormData(document.getElementById('updateForm'));
+            var data = {};
+            formData.forEach((value, key) => {
+                data[key] = value;
+            });
+
+            // Utilizăm fetch pentru a trimite PUT
+            fetch('/update_profile.cgi', {
+                method: 'PUT', // Cererea va fi de tip PUT
+                headers: {
+                    'Content-Type': 'application/x-www-form-urlencoded', // Tipul de conținut al datelor
+                },
+                body: new URLSearchParams(data).toString() // Convertește obiectul într-un string URL-encoded
+            })
+            .then(response => response.text())
+            .then(responseData => {
+                console.log(responseData); // Afișează răspunsul de la server
+                document.body.innerHTML += `<p>Response: ${responseData}</p>`;  // Afișăm răspunsul în pagină
+            })
+            .catch(error => {
+                console.error('Error:', error);
+            });
+        }
+    </script>
 </head>
 <body>
     <h1>Test PUT Update</h1>
-    <form action="/update_profile.cgi" method="POST">
-        <input type="hidden" name="_method" value="PUT">
+    <form id="updateForm" onsubmit="submitForm(event)">
         <label for="name">Name:</label>
         <input type="text" id="name" name="name"><br><br>
         <label for="email">Email:</label>
