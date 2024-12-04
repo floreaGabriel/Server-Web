@@ -299,7 +299,6 @@ void handler(void *arg) {
             printf("nu a intrat in .cgi la post");
             parse_post_data(body, content_type, client_socket);
         }
-
     } else if (strcmp(method, "PUT") == 0) {
         printf("Procesăm un request PUT pentru: %s\n", uri);
 
@@ -309,6 +308,8 @@ void handler(void *arg) {
         } else {
             printf("Nu s-a găsit un body în cerere.\n");
         }
+
+        printf("body:%s \n\n",body);
 
         if (strstr(uri, ".cgi") != NULL) {
             printf("a intrat in .cgi la put");
