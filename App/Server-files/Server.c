@@ -12,6 +12,11 @@ void execute_cgi_script(const char *script_path, const char *body, int client_so
 int authenticate(const char *auth_header);
 void send_response(int client_socket, const char *status, const char *body, const char *content_type);
 void parse_post_data(const char *body, const char *content_type, int client_socket);
+void process_json(const char *body, int client_socket);
+void process_form_urlencoded(const char *body, int client_socket, char* path);
+void process_text_plain(const char *body, int client_socket);
+void process_unknown(const char *body, int client_socket);
+void process_multipart_form_data(const char *body, int client_socket);
 
 struct Server server_constructor(int domain, int  service, int protocol, uint32_t interface,
     int port, int backlog) 
@@ -19,6 +24,7 @@ struct Server server_constructor(int domain, int  service, int protocol, uint32_
 
     struct Server server;
 
+    
     server.domain = domain;
     server.service = service;
     server.protocol = protocol;
@@ -91,8 +97,6 @@ char* get_header_value(const char *request, const char *header) {
     }
     return NULL;
 }
-
-
 char* get_method_from_request(const char *request) {
     static char method[16];
     int i = 0;
@@ -129,10 +133,10 @@ char* get_uri_from_request(const char *request) {
 
 
 
-void launch(struct Server *server)
+void launch(struct Server *server, int thread_pool_size)
 {
     // Creăm un ThreadPool cu 20 de thread-uri
-    ThreadPool *thread_pool = threadPoolCreate(20);
+    ThreadPool *thread_pool = threadPoolCreate(thread_pool_size);
     if (!thread_pool) {
         perror("Eroare la crearea ThreadPool-ului");
         
@@ -181,8 +185,6 @@ void launch(struct Server *server)
     threadPoolDestroy(thread_pool);
 }
 
-
-
 void handler(void *arg) {
     struct ClientServer *client = (struct ClientServer *)arg;
     int client_socket = client->client;
@@ -218,6 +220,12 @@ void handler(void *arg) {
     printf("tot requestul:\n\n%s\n\n\nmethod:\n%s\nuri:\n%s\ncontent_type:\n%s\nauth_header:\n%s\n\n"
             ,request_string,method,uri,content_type,auth_header);
 
+    // verificare pentru accesare de subdirectoare... bad request
+    if (strstr(uri, "..")) {
+        send_response(client_socket, "400 Bad Request", "Invalid file path", "text/plain");
+        return;
+    }
+
 
     if (auth_header) {
         if (!authenticate(auth_header)) {
@@ -240,6 +248,10 @@ void handler(void *arg) {
         perror("readlink");
     }
 
+    // setare functie initiala pentru /
+    if (strcmp(uri, "/") == 0) {
+        strcat(path, "index.html");
+    }
     // Analizăm cererea în funcție de metoda HTTP
     if (strcmp(method, "GET") == 0) {
         printf("Procesăm un request GET pentru: %s\n", uri);
@@ -290,35 +302,100 @@ void handler(void *arg) {
             body += 4; // Salt peste separatorul "\r\n\r\n"
         } else {
             printf("Nu s-a găsit un body în cerere.\n");
+            send_response(client_socket, "400 Bad Request", "Body missing in POST request", "text/plain");
+            close(client_socket);
+            free(client);
+            return;
+
         }
 
+        if (!content_type) {
+            printf("Antetul Content-Type lipsește.\n");
+            send_response(client_socket, "400 Bad Request", "Content-Type missing", "text/plain");
+            close(client_socket);
+            free(client);
+            return;
+        } 
+
+
+        printf("Body-ul cererii:\n%s\n", body);
+        printf("Content-Type-ul cererii: %s\n", content_type);
+
+        // Detectare și procesare fișiere CGI
         if (strstr(uri, ".cgi") != NULL) {
-            printf("a intrat in .cgi la post");
             execute_cgi_script(path, body, client_socket);
+        } else if (strstr(content_type, "application/json") != NULL) {
+            process_json(body, client_socket);
+        } else if (strstr(content_type, "multipart/form-data") != NULL) {
+            process_multipart_form_data(body, client_socket);
+        } else if (strstr(content_type, "application/x-www-form-urlencoded") != NULL) { 
+            process_form_urlencoded(body, client_socket, path);
+        } else if (strstr(content_type, "text/plain") != NULL) {
+            process_text_plain(body, client_socket);
         } else {
-            printf("nu a intrat in .cgi la post");
-            parse_post_data(body, content_type, client_socket);
+            process_unknown(body, client_socket);
         }
     } else if (strcmp(method, "PUT") == 0) {
         printf("Procesăm un request PUT pentru: %s\n", uri);
 
+        // Găsim corpul cererii
         char *body = strstr(request_string, "\r\n\r\n");
         if (body) {
-            body += 4;
+            body += 4; // Sărim peste separatorul "\r\n\r\n"
         } else {
             printf("Nu s-a găsit un body în cerere.\n");
+            send_response(client_socket, "400 Bad Request", "Body missing in PUT request", "text/plain");
+            close(client_socket);
+            free(client);
+            return;
         }
 
-        printf("body:%s \n\n",body);
+        if (!content_type) {
+            printf("Antetul Content-Type lipsește.\n");
+            send_response(client_socket, "400 Bad Request", "Content-Type missing", "text/plain");
+            close(client_socket);
+            free(client);
+            return;
+        }
 
-        if (strstr(uri, ".cgi") != NULL) {
-            printf("a intrat in .cgi la put");
-            execute_cgi_script(path, body, client_socket);
+        printf("Body-ul cererii (PUT):\n%s\n", body);
+        printf("Content-Type-ul cererii (PUT): %s\n", content_type);
+
+        // Procesare requesturi PUT pentru fișiere
+        if (strstr(content_type, "text/plain") != NULL) {
+                // Salvăm corpul cererii ca fișier text pe server
+            FILE *file = fopen(path, "w");
+            if (!file) {
+                perror("Eroare la deschiderea fișierului pentru scriere");
+                send_response(client_socket, "500 Internal Server Error", "Error saving file", "text/plain");
+                close(client_socket);
+                free(client);
+                return;
+            }
+            fprintf(file, "%s", body);
+            fclose(file);
+
+            printf("Fișier actualizat cu succes: %s\n", path);
+            send_response(client_socket, "200 OK", "File updated successfully", "text/plain");
+        } else if (strstr(content_type, "application/json") != NULL) {
+            // Salvăm JSON-ul primit în corpul cererii ca fișier JSON
+            FILE *file = fopen(path, "w");
+            if (!file) {
+                perror("Eroare la deschiderea fișierului pentru scriere");
+                send_response(client_socket, "500 Internal Server Error", "Error saving JSON file", "text/plain");
+                close(client_socket);
+                free(client);
+                return;
+            }
+            fprintf(file, "%s", body);
+            fclose(file);
+
+            printf("Fișier JSON actualizat cu succes: %s\n", path);
+            send_response(client_socket, "200 OK", "JSON updated successfully", "text/plain");
         } else {
-            printf("nu a intrat in .cgi la put");
-            parse_post_data(body, content_type, client_socket); // Poate fi folosit și pentru PUT
-        }
-
+            printf("Content-Type-ul nu este suportat pentru PUT: %s\n", content_type);
+            send_response(client_socket, "415 Unsupported Media Type", "Content-Type not supported for PUT", "text/plain");
+        } 
     } else {
         printf("Metodă HTTP necunoscută: %s\n", method);
         send_response(client_socket, "405 Method Not Allowed", "Metoda HTTP nu este permisă", "text/plain");
@@ -346,6 +423,9 @@ void send_response(int client_socket, const char *status, const char *body, cons
     write(client_socket, body, strlen(body));
 }
 
+// ~~~~~~~~~~~~
+// CGI + POST DATA functions 
+
 void parse_post_data(const char *body, const char *content_type, int client_socket) {
     if (strcmp(content_type, "application/x-www-form-urlencoded") == 0) {
         // Procesare form-uri
@@ -359,7 +439,6 @@ void parse_post_data(const char *body, const char *content_type, int client_sock
         send_response(client_socket, "415 Unsupported Media Type", "Tipul de conținut nu este acceptat", "text/plain");
     }
 }
-
 void execute_cgi_script(const char *script_path, const char *body, int client_socket) {
     pid_t pid = fork();
     if (pid == 0) {
@@ -386,4 +465,98 @@ void execute_cgi_script(const char *script_path, const char *body, int client_so
     }
 }
 
+// ~~~~~~~~~~~~~~~~~~
+// POST processing functions 
 
+void process_json(const char *body, int client_socket) {
+    printf("Procesăm JSON: %s\n", body);
+    send_response(client_socket, "200 OK", "Json processed successfully", "application/json");
+}
+void process_form_urlencoded(const char *body, int client_socket, char* file_path) {
+    printf("Procesăm form-urlencoded: %s\n", body);
+
+    // Fișierul care conține datele
+    printf("FISIER: %s\n", file_path);
+    FILE *file = fopen(file_path, "r+");
+    if (!file) {
+        perror("Eroare la deschiderea fișierului");
+        send_response(client_socket, "500 Internal Server Error", "Could not open data file", "application/json");
+        return;
+    }
+
+    // Extragem numele și emailul din body
+    char name_to_check[128] = {0};
+    char email_to_check[128] = {0};
+
+    const char *name_key = "name=";
+    const char *email_key = "email=";
+
+    char *name_start = strstr(body, name_key);
+    char *email_start = strstr(body, email_key);
+
+    if (name_start) {
+        name_start += strlen(name_key);
+        char *name_end = strchr(name_start, '&'); // Numele se termină înainte de '&'
+        if (name_end) {
+            size_t name_length = name_end - name_start;
+            strncpy(name_to_check, name_start, name_length);
+            name_to_check[name_length] = '\0';
+        } else {
+            strcpy(name_to_check, name_start); // Dacă nu există '&', citim până la sfârșitul body-ului
+        }
+    }
+
+    if (email_start) {
+        email_start += strlen(email_key);
+        char *email_end = strchr(email_start, '\0'); // Emailul este până la sfârșitul body-ului
+        if (email_end) {
+            size_t email_length = email_end - email_start;
+            strncpy(email_to_check, email_start, email_length);
+            email_to_check[email_length] = '\0';
+        }
+    }
+
+    // Verificăm dacă linia completă (nume și email) există deja în fișier
+    int entry_exists = 0;
+    char line[256];
+    while (fgets(line, sizeof(line), file)) {
+        // Eliminăm newline-ul de la finalul liniei
+        line[strcspn(line, "\n")] = '\0';
+
+        char existing_name[128];
+        char existing_email[128];
+        if (sscanf(line, "%127s %127s", existing_name, existing_email) == 2) {
+            if (strcmp(existing_name, name_to_check) == 0 && strcmp(existing_email, email_to_check) == 0) {
+                entry_exists = 1;
+                break;
+            }
+        }
+    }
+
+    if (entry_exists) {
+        printf("Numele și emailul %s %s există deja.\n", name_to_check, email_to_check);
+        send_response(client_socket, "200 OK", "Name and email already exist", "application/json");
+    } else {
+        // Adăugăm linia la finalul fișierului
+        fseek(file, 0, SEEK_END);
+        fprintf(file, "%s %s\n", name_to_check, email_to_check);
+        printf("Date adăugate: %s %s\n", name_to_check, email_to_check);
+        send_response(client_socket, "200 OK", "Name and email added successfully", "application/json");
+    }
+
+    fclose(file);
+}
+void process_text_plain(const char *body, int client_socket) {
+    printf("Procesăm text/plain: %s\n", body);
+    send_response(client_socket, "200 OK", "Text processed successfully", "text/plain");
+}
+void process_unknown(const char *body, int client_socket) {
+    printf("Tip de conținut necunoscut: %s\n", body);
+    send_response(client_socket, "415 Unsupported Media Type", "Unsupported Content-Type", "text/plain");
+} 
+void process_multipart_form_data(const char *body, int client_socket) {
+    printf("Procesăm imaginea încărcată...\n");
+
+    // 6. Răspuns către client
+    send_response(client_socket, "200 OK", "Image uploaded successfully", "text/plain");
+}

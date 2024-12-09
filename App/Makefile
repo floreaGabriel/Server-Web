@@ -3,7 +3,7 @@
 ###############################################################################
 
 # Create top level static library and all sub-libraries
-all: Main DataStructures Server-files main_exec
+all: cJSON Main DataStructures Server-files main_exec
 
 
 ###############################################################################
@@ -12,16 +12,16 @@ all: Main DataStructures Server-files main_exec
 
 # Build the main executable
 main_exec: Main
-	gcc -o main main.c -L. -lmini_server
+	gcc -o main main.c -L. -lmini_server -L./cJSON -lcjson
+
 
 ###############################################################################
 # MARK: MAIN
 ###############################################################################
 
 # Creates just the top level static library
-Main: DataStructuresSub Server-filesSub
-		ar rcs libmini_server.a Node.o LinkedList.o  BinarySearchTree.o Entry.o Dictionary.o Queue.o Server.o ThreadPool.o
-
+Main: DataStructuresSub Server-filesSub cJSON
+	ar rcs libmini_server.a Node.o LinkedList.o  BinarySearchTree.o Entry.o Dictionary.o Queue.o Server.o ThreadPool.o ServerConfig.o
 
 
 ###############################################################################
@@ -60,15 +60,25 @@ Queue:
 
 # Creates the networking library
 Server-files: Server-filesSub
-	ar rcs Server-files/Server-files.a Server.o Node.o LinkedList.o BinarySearchTree.o Entry.o Dictionary.o ThreadPool.o
+	ar rcs Server-files/Server-files.a Server.o Node.o LinkedList.o BinarySearchTree.o Entry.o Dictionary.o ThreadPool.o ServerConfig.o
 
 # Sub components of the networking library
-Server-filesSub: DataStructuresSub Server ThreadPool
+Server-filesSub: DataStructuresSub Server ThreadPool ServerConfig
 
 Server:
 	gcc -c Server-files/Server.c
 ThreadPool:
 	gcc -c Server-files/ThreadPool.c
+ServerConfig:
+	gcc -c Server-files/ServerConfig.c
+
+###############################################################################
+# MARK: cJSON
+###############################################################################
+
+# Builds the cJSON library
+cJSON:
+	$(MAKE) -C cJSON
 
 ###############################################################################
 # MARK: CLEAN
@@ -76,4 +86,6 @@ ThreadPool:
 
 # Remove all .o files
 clean:
-	rm *.o
+	rm -f *.o
+	rm -f main
+	$(MAKE) -C cJSON clean

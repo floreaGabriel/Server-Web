@@ -13,7 +13,7 @@ struct Server {
     int service;
     int protocol;
     uint32_t interface; 
-    int port;
+    int port; 
     int backlog;
 
     struct sockaddr_in address;
@@ -29,7 +29,7 @@ struct ClientServer {
 struct Server server_constructor(int domain, int service, int protocol, uint32_t interface, 
     int port, int backlog);
 
-void launch(struct Server *server);
+void launch(struct Server*, int);
 
 void server_destructor(struct Server *server);
 #endif /* Server_h */

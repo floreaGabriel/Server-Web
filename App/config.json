@@ -1,0 +1,12 @@
+{
+    "server": {
+      "domain": "AF_INET",
+      "service": "SOCK_STREAM",
+      "protocol" : 0,
+      "interface" : "INADDR_ANY",
+      "port" : 8080,
+      "backlog" : 255,
+      "thread_pool_size": 20
+    }
+  }
+  
