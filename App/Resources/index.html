@@ -1,13 +1,135 @@
 <!DOCTYPE html>
-<html lang="ro">
+<html lang="en">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Hello World</title>
+    <title>HTTP Request Test Page</title>
 </head>
 <body>
-    <h1>Hello World</h1>
-    <!-- Buton care deschide link-ul -->
-    <button onclick="window.location.href='http://localhost:8080/demo.html'">Caută Mașină</button>
+    <h1>HTTP Request Testing</h1>
+
+    <!-- GET Request -->
+    <section>
+        <h2>GET Request</h2>
+        <p>Click the link below to make a GET request:</p>
+        <a href="/demo.html" target="_blank">Test GET Request</a>
+    </section>
+    <hr>
+
+    <!-- POST Request -->
+    <section>
+        <h2>POST Request</h2>
+        <p>Submit this form to test a POST request:</p>
+        <form action="/post_example" method="POST">
+            <label for="name">Name:</label>
+            <input type="text" id="name" name="name" required><br><br>
+            <label for="email">Email:</label>
+            <input type="email" id="email" name="email" required><br><br>
+            <button type="submit">Submit POST</button>
+        </form>
+    </section>
+    <hr>
+
+    <!-- PUT Request -->
+    <section>
+        <h2>PUT Request</h2>
+        <p>Submit this form to test a PUT request:</p>
+        <form id="putForm" onsubmit="handlePutRequest(event)">
+            <label for="data">Data to Update:</label>
+            <input type="text" id="data" name="data" required><br><br>
+            <button type="submit">Submit PUT</button>
+        </form>
+    </section>
+    <hr>
+
+    <!-- DELETE Request -->
+    <section>
+        <h2>DELETE Request</h2>
+        <p>Click the button below to send a DELETE request:</p>
+        <button onclick="handleDeleteRequest()">Test DELETE Request</button>
+    </section>
+    <hr>
+
+    <!-- OPTIONS Request -->
+    <section>
+        <h2>OPTIONS Request</h2>
+        <p>Click the button below to send an OPTIONS request:</p>
+        <button onclick="handleOptionsRequest()">Test OPTIONS Request</button>
+    </section>
+    <hr>
+
+    <!-- HEAD Request -->
+    <section>
+        <h2>HEAD Request</h2>
+        <p>Click the button below to send a HEAD request:</p>
+        <button onclick="handleHeadRequest()">Test HEAD Request</button>
+    </section>
+    <hr>
+
+    <!-- File Download -->
+    <section>
+        <h2>File Download</h2>
+        <p>Click the link below to download a file from the server:</p>
+        <a href="/img.png" download>Download File</a>
+    </section>
+    <hr>
+
+    <!-- File Upload -->
+    <section>
+        <h2>File Upload</h2>
+        <p>Use this form to upload a file to the server:</p>
+        <form action="/upload_file" method="POST" enctype="multipart/form-data">
+            <label for="file">Choose a file:</label>
+            <input type="file" id="file" name="file" required><br><br>
+            <button type="submit">Upload File</button>
+        </form>
+    </section>
+    <hr>
+
+    <!-- CGI Script Execution -->
+    <section>
+        <h2>CGI Script Execution</h2>
+        <p>Click the link below to execute a CGI script:</p>
+        <a href="/cgi-bin/update_profile.cgi" target="_blank">Execute CGI Script</a>
+    </section>
+
+    <script>
+        // PUT Request
+        function handlePutRequest(event) {
+            event.preventDefault();
+            const data = new FormData(event.target);
+            const jsonData = JSON.stringify(Object.fromEntries(data));
+            fetch('/put_example', {
+                method: 'PUT',
+                headers: { 'Content-Type': 'application/json' },
+                body: jsonData
+            })
+            .then(response => response.text())
+            .then(result => alert('PUT Response: ' + result))
+            .catch(error => console.error('PUT Error:', error));
+        }
+
+        // DELETE Request
+        function handleDeleteRequest() {
+            fetch('/delete_example', { method: 'DELETE' })
+            .then(response => response.text())
+            .then(result => alert('DELETE Response: ' + result))
+            .catch(error => console.error('DELETE Error:', error));
+        }
+
+        // OPTIONS Request
+        function handleOptionsRequest() {
+            fetch('/options_example', { method: 'OPTIONS' })
+            .then(response => alert('OPTIONS Response: ' + response.status))
+            .catch(error => console.error('OPTIONS Error:', error));
+        }
+
+        // HEAD Request
+        function handleHeadRequest() {
+            fetch('/head_example', { method: 'HEAD' })
+            .then(response => alert('HEAD Response: ' + response.status))
+            .catch(error => console.error('HEAD Error:', error));
+        }
+    </script>
 </body>
 </html>
