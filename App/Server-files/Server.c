@@ -4,11 +4,14 @@
 #include <stdlib.h>
 #include <pthread.h>
 #include <string.h>
+#include <sys/wait.h>
+
 
 #define MAX_LENGTH 30000
 
 void handler(void *arg);
 void execute_cgi_script(const char *script_path, const char *body, int client_socket);
+void execute_php_script(const char *script_path, const char *method, const char *data, int client_socket);
 int authenticate(const char *auth_header);
 void send_response(int client_socket, const char *status, const char *body, const char *content_type);
 void parse_post_data(const char *body, const char *content_type, int client_socket);
@@ -256,6 +259,35 @@ void handler(void *arg) {
     if (strcmp(method, "GET") == 0) {
         printf("Procesăm un request GET pentru: %s\n", uri);
 
+
+        if (strstr(uri, ".php") != NULL) {
+        char *query_string = strchr(uri, '?'); // Găsim începutul query string-ului (parametrii)
+
+        char script_path[500];
+        for(int i=0;i<strlen(path);i++)
+        {
+            if(path[i]!='?')
+            {
+                script_path[i]=path[i];
+            } else
+            {
+                i=strlen(path);
+            }
+        }
+
+        if (query_string) {
+            query_string++; // Sărim peste caracterul `?`
+        } else {
+            query_string = ""; // Nu există query string
+        }
+
+        // Apelăm funcția pentru execuția scriptului PHP
+        execute_php_script(script_path, method,query_string, client_socket);
+        close(client_socket);
+        free(client);
+        return;
+    }
+
         if (access(path, R_OK) == 0) {
             // Fișierul există, trimitem conținutul
             FILE *file = fopen(path, "r");
@@ -322,7 +354,12 @@ void handler(void *arg) {
         printf("Content-Type-ul cererii: %s\n", content_type);
 
         // Detectare și procesare fișiere CGI
-        if (strstr(uri, ".cgi") != NULL) {
+        if (strstr(uri, ".php") != NULL) {
+            execute_php_script(path, method,body, client_socket);
+            close(client_socket);
+            free(client);
+            return;
+        } else if (strstr(uri, ".cgi") != NULL) {
             execute_cgi_script(path, body, client_socket);
         } else if (strstr(content_type, "application/json") != NULL) {
             process_json(body, client_socket);
@@ -439,6 +476,8 @@ void parse_post_data(const char *body, const char *content_type, int client_sock
         send_response(client_socket, "415 Unsupported Media Type", "Tipul de conținut nu este acceptat", "text/plain");
     }
 }
+
+
 void execute_cgi_script(const char *script_path, const char *body, int client_socket) {
     pid_t pid = fork();
     if (pid == 0) {
@@ -464,6 +503,86 @@ void execute_cgi_script(const char *script_path, const char *body, int client_so
         perror("Fork failed");
     }
 }
+
+void execute_php_script(const char *script_path, const char *method, const char *data, int client_socket) {
+    int pipe_stdin[2], pipe_stdout[2];
+    int use_stdin = strcmp(method, "POST") == 0; // Folosim stdin doar pentru POST
+
+    // Creăm pipe-urile necesare
+    if ((use_stdin && pipe(pipe_stdin) == -1) || pipe(pipe_stdout) == -1) {
+        perror("Eroare la crearea pipe-urilor");
+        send_response(client_socket, "500 Internal Server Error", "Failed to execute PHP script", "text/plain");
+        return;
+    }
+
+    pid_t pid = fork();
+    if (pid == 0) {
+        // Procesul copil
+        if (use_stdin) close(pipe_stdin[1]);
+        close(pipe_stdout[0]);
+
+        if (use_stdin) dup2(pipe_stdin[0], STDIN_FILENO); // Redirecționăm STDIN pentru POST
+        dup2(pipe_stdout[1], STDOUT_FILENO);             // Redirecționăm STDOUT
+        close(pipe_stdout[1]);
+
+        if (use_stdin) close(pipe_stdin[0]);
+
+        // Setăm variabilele de mediu necesare
+        setenv("REQUEST_METHOD", method, 1);
+        setenv("SCRIPT_FILENAME", script_path, 1);
+        setenv("REDIRECT_STATUS", "200", 1);
+
+        if (strcmp(method, "POST") == 0) {
+            // Setăm variabilele specifice POST
+            setenv("CONTENT_TYPE", "application/x-www-form-urlencoded", 1);
+            char content_length[16];
+            snprintf(content_length, sizeof(content_length), "%zu", strlen(data));
+            setenv("CONTENT_LENGTH", content_length, 1);
+        } else if (strcmp(method, "GET") == 0) {
+            // Setăm variabilele specifice GET
+            setenv("QUERY_STRING", data, 1); // `data` este query string-ul în cazul GET
+        }
+
+        // Executăm php-cgi
+        execlp("php-cgi", "php-cgi", NULL);
+
+        // Dacă ajungem aici, execuția a eșuat
+        perror("Execuția PHP a eșuat");
+        exit(1);
+    } else if (pid > 0) {
+        // Procesul părinte
+        if (use_stdin) close(pipe_stdin[0]);
+        close(pipe_stdout[1]);
+
+        // Scriem body-ul în STDIN-ul procesului copil pentru POST
+        if (use_stdin) {
+            write(pipe_stdin[1], data, strlen(data));
+            close(pipe_stdin[1]);
+        }
+
+        // Citim răspunsul din STDOUT-ul procesului copil
+        char buffer[4096];
+        ssize_t bytes_read;
+
+        // Trimitere capete HTTP
+        char *response_header = "HTTP/1.1 200 OK\r\nContent-Type: text/html; charset=UTF-8\r\n\r\n";
+        write(client_socket, response_header, strlen(response_header));
+
+        // Trimitere conținut
+        while ((bytes_read = read(pipe_stdout[0], buffer, sizeof(buffer))) > 0) {
+            write(client_socket, buffer, bytes_read);
+        }
+
+        close(pipe_stdout[0]);
+        waitpid(pid, NULL, 0);
+    } else {
+        perror("Eroare la fork");
+        send_response(client_socket, "500 Internal Server Error", "Failed to fork process", "text/plain");
+    }
+}
+
+
+
 
 // ~~~~~~~~~~~~~~~~~~
 // POST processing functions 
