@@ -16,6 +16,20 @@
     </section>
     <hr>
 
+    <!-- GET Request cu PHP -->
+    <section>
+        <h2>GET Request with PHP</h2>
+        <p>Submit this form to send a GET request with parameters to a PHP script:</p>
+        <form id="getForm" onsubmit="handleGetRequest(event)">
+            <label for="name">Name:</label>
+            <input type="text" id="name" name="name" required><br><br>
+            <label for="email">Email:</label>
+            <input type="email" id="email" name="email" required><br><br>
+            <button type="submit">Submit GET Request</button>
+        </form>
+    </section>
+    <hr>
+
     <!-- POST Request -->
     <section>
         <h2>POST Request</h2>
@@ -26,6 +40,20 @@
             <label for="email">Email:</label>
             <input type="email" id="email" name="email" required><br><br>
             <button type="submit">Submit POST</button>
+        </form>
+    </section>
+    <hr>
+
+    <!-- PHP POST Request -->
+    <section>
+        <h2>PHP POST Request</h2>
+        <p>Submit this form to test a POST request to a PHP script:</p>
+        <form action="/test.php" method="POST">
+            <label for="php_name">Name:</label>
+            <input type="text" id="php_name" name="name" required><br><br>
+            <label for="php_email">Email:</label>
+            <input type="email" id="php_email" name="email" required><br><br>
+            <button type="submit">Submit PHP POST</button>
         </form>
     </section>
     <hr>
@@ -94,6 +122,19 @@
     </section>
 
     <script>
+        // GET Request with PHP
+        function handleGetRequest(event) {
+            event.preventDefault();
+            const name = document.getElementById("name").value;
+            const email = document.getElementById("email").value;
+
+            // Construim URL-ul dinamic
+            const url = `/test2.php?name=${encodeURIComponent(name)}&email=${encodeURIComponent(email)}`;
+
+            // Redirecționăm utilizatorul către URL-ul generat
+            window.location.href = url;
+        }
+
         // PUT Request
         function handlePutRequest(event) {
             event.preventDefault();

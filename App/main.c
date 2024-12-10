@@ -9,7 +9,7 @@
 
 int main(int argc, char* argv[])
 {
-    //signal(SIGPIPE, SIG_IGN);
+    signal(SIGPIPE, SIG_IGN);
     ServerConfig config;
     
     // Încarcă configurarea din fișierul JSON
