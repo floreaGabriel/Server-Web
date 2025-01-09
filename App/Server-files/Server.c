@@ -5,6 +5,7 @@
 #include <pthread.h>
 #include <string.h>
 #include <sys/wait.h>
+#include <zlib.h>
 
 
 #define MAX_LENGTH 30000
@@ -100,6 +101,8 @@ char* get_header_value(const char *request, const char *header) {
     }
     return NULL;
 }
+
+
 char* get_method_from_request(const char *request) {
     static char method[16];
     int i = 0;
@@ -188,6 +191,36 @@ void launch(struct Server *server, int thread_pool_size)
     threadPoolDestroy(thread_pool);
 }
 
+
+int compress_gzip(const char *input, size_t input_len, char *output, size_t *output_len) {
+    z_stream stream;
+    memset(&stream, 0, sizeof(stream));
+
+    // Initializează stream-ul pentru compresie
+    if (deflateInit2(&stream, Z_BEST_COMPRESSION, Z_DEFLATED, 15 | 16, 8, Z_DEFAULT_STRATEGY) != Z_OK) {
+        return -1;
+    }
+
+    stream.next_in = (Bytef *)input;
+    stream.avail_in = input_len;
+
+    stream.next_out = (Bytef *)output;
+    stream.avail_out = *output_len;
+
+    // Compresia datelor
+    if (deflate(&stream, Z_FINISH) != Z_STREAM_END) {
+        deflateEnd(&stream);
+        return -1;
+    }
+
+    *output_len = stream.total_out;
+
+    // Curăță stream-ul
+    deflateEnd(&stream);
+    return 0;
+}
+
+
 void handler(void *arg) {
     struct ClientServer *client = (struct ClientServer *)arg;
     int client_socket = client->client;
@@ -201,7 +234,7 @@ void handler(void *arg) {
     }
 
     if (bytes_read >= sizeof(request_string)) {
-        fprintf(stderr, "Request prea mare pentru buffer.\n");
+        fprintf(stderr, "Request prea mare pentru fbuffer.\n");
         close(client_socket);
         return ;
     }
@@ -214,9 +247,14 @@ void handler(void *arg) {
     char *uri = get_uri_from_request(request_string);
     char *content_type = get_header_value(request_string, "Content-Type");
     char *auth_header = get_header_value(request_string, "Authorization");
+    char *accept_encoding = get_header_value(request_string,"Accept-Encoding");
 
-    //printf("\n\nrequest uri:\n%s\n\n",uri); //in uri am calea
-    //printf("\n\nrequest:\n\n%s\n\n",request_string); //in request string este tot string ul de il primesc
+
+    int supports_gzip=0;
+    if(accept_encoding && strstr(accept_encoding,"gzip"))
+    {
+        supports_gzip=1;
+    }
 
 
     printf("PRINTEAZA DATE:\n");
@@ -287,7 +325,6 @@ void handler(void *arg) {
         free(client);
         return;
     }
-
         if (access(path, R_OK) == 0) {
             // Fișierul există, trimitem conținutul
             FILE *file = fopen(path, "r");
@@ -306,12 +343,35 @@ void handler(void *arg) {
                     file_content[file_size] = '\0';
                     fclose(file);
 
-                    char header[256];
-                    snprintf(header, sizeof(header),
-                            "HTTP/1.1 200 OK\r\nContent-Type: text/html; charset=UTF-8\r\nContent-Length: %ld\r\n\r\n",
-                            file_size);
-                    write(client_socket, header, strlen(header));
-                    write(client_socket, file_content, file_size);
+                    printf("am ajuns inainte de supports_gzip%d\n",supports_gzip);
+                    if (supports_gzip) {
+                        printf("executa compresia acuma\n\n");
+                        // Aplicăm compresia Gzip
+                        char compressed_content[1024 * 10]; // Buffer pentru conținut comprimat
+                        size_t compressed_size = sizeof(compressed_content);
+
+                        if (compress_gzip(file_content, file_size, compressed_content, &compressed_size) == 0) {
+                            // Trimitem răspunsul comprimat
+                            char header[256];
+                            snprintf(header, sizeof(header),
+                                    "HTTP/1.1 200 OK\r\nContent-Type: text/html; charset=UTF-8\r\nContent-Encoding: gzip\r\nContent-Length: %ld\r\n\r\n",
+                                    compressed_size);
+                            printf("heade=\n%s",header);
+                            write(client_socket, header, strlen(header));
+                            write(client_socket, compressed_content, compressed_size);
+                        } else {
+                            // Eroare la compresie
+                            const char *server_error_response = "HTTP/1.1 500 Internal Server Error\r\nContent-Length: 0\r\n\r\n";
+                            write(client_socket, server_error_response, strlen(server_error_response));
+                        }
+                    } else {                    
+                        char header[256];
+                        snprintf(header, sizeof(header),
+                                "HTTP/1.1 200 OK\r\nContent-Type: text/html; charset=UTF-8\r\nContent-Length: %ld\r\n\r\n",
+                                file_size);
+                        write(client_socket, header, strlen(header));
+                        write(client_socket, file_content, file_size);
+                    }
                     free(file_content);
                 } else {
                     fclose(file);
@@ -665,6 +725,8 @@ void process_form_urlencoded(const char *body, int client_socket, char* file_pat
 
     fclose(file);
 }
+
+
 void process_text_plain(const char *body, int client_socket) {
     printf("Procesăm text/plain: %s\n", body);
     send_response(client_socket, "200 OK", "Text processed successfully", "text/plain");
@@ -673,6 +735,7 @@ void process_unknown(const char *body, int client_socket) {
     printf("Tip de conținut necunoscut: %s\n", body);
     send_response(client_socket, "415 Unsupported Media Type", "Unsupported Content-Type", "text/plain");
 } 
+
 void process_multipart_form_data(const char *body, int client_socket) {
     printf("Procesăm imaginea încărcată...\n");
 
